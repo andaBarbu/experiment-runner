@@ -5,6 +5,7 @@ Vagrantfile
 Session.vim
 .idea
 .venv
+venv
 .vagrant
 */__pycache__/*
 examples/linux-ps-profiling/primer

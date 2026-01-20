@@ -131,8 +131,6 @@ class CLISource(DataSource):
         self.args = None
         self._logfile = ValueRef(None)
 
-        super().__init__()
-
     def __del__(self):
         if self.process:
             self.process.kill()
