@@ -31,7 +31,8 @@ class ConfigCreate:
             if args is None:
                 filepath = __file__.split('/')
                 filepath.pop()
-                filepath = '/'.join(filepath) + "/../../../examples/"
+                #filepath = '/'.join(filepath) + "/../../../examples/"
+                filepath = os.getenv("EXAMPLES_PATH", '/'.join(filepath) + "/../../../examples/")
                 destination = os.path.abspath(filepath)
             else:
                 if len(args) == 3:
