@@ -76,6 +76,36 @@ python experiment-runner/ <MyRunnerConfig.py>
 
 The results of the experiment will be stored in the directory `RunnerConfig.results_output_path/RunnerConfig.name` as defined by your config variables.
 
+### Portability Across Users and Machines
+
+When sharing experiments across different users or machines, hardcoded paths in configuration files can cause issues. Experiment Runner supports **environment variables** to make your experiments portable without code changes:
+
+#### Available Environment Variables
+
+- **`EXPERIMENT_RUNNER_OUTPUT_PATH`**: Directory where experiment results are stored
+  - Default: `<config-directory>/experiments`
+  - Example: `export EXPERIMENT_RUNNER_OUTPUT_PATH="/path/to/results"`
+
+- **`ENERGIBRIDGE_PATH`**: Path to the EnergiBridge executable (for energy measurements)
+  - Default: `/usr/local/bin/energibridge`
+  - Example: `export ENERGIBRIDGE_PATH="/usr/local/bin/energibridge"`
+
+- **`EXAMPLES_PATH`**: Directory for generating new config templates
+  - Default: `<project-root>/examples`
+  - Example: `export EXAMPLES_PATH="/home/user/my-experiments"`
+
+#### Using Environment Variables
+
+Set environment variables before running your experiment:
+
+```bash
+export EXPERIMENT_RUNNER_OUTPUT_PATH="/data/experiments"
+export ENERGIBRIDGE_PATH="/opt/energibridge/bin/energibridge"
+python experiment-runner/ MyRunnerConfig.py
+```
+
+Your configuration files automatically use these variables if set, with sensible defaults when they are not. This allows the same experiment to run on different machines without any code modifications.
+
 **More information about the profilers and use cases can be found in the [Wiki tab](https://github.com/S2-group/experiment-runner/wiki).**
 
 ## How to cite Experiment Runner

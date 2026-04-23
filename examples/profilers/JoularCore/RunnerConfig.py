@@ -22,7 +22,8 @@ class RunnerConfig:
     ROOT_DIR = Path(dirname(realpath(__file__)))
 
     name: str = "joularcore_example"
-    results_output_path: Path = ROOT_DIR / "experiments"
+    default_output = ROOT_DIR / "experiments"
+    results_output_path: Path = Path(os.getenv("EXPERIMENT_RUNNER_OUTPUT_PATH", str(default_output)))
     operation_type: OperationType = OperationType.AUTO
     time_between_runs_in_ms: int = 1000
 

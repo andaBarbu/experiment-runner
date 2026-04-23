@@ -8,6 +8,7 @@ from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from typing import Optional, Dict, Any
 from pathlib import Path
 from os.path import dirname, realpath
+import os
 
 import time
 
@@ -21,7 +22,8 @@ class RunnerConfig:
     """The path in which Experiment Runner will create a folder with the name `self.name`, in order to store the
     results from this experiment. (Path does not need to exist - it will be created if necessary.)
     Output path defaults to the config file's path, inside the folder 'experiments'"""
-    results_output_path:        Path             = ROOT_DIR / 'experiments'
+    default_output = ROOT_DIR / "experiments"
+    results_output_path:        Path            = Path(os.getenv("EXPERIMENT_RUNNER_OUTPUT_PATH", str(default_output)))
 
     """Experiment operation type. Unless you manually want to initiate each run, use `OperationType.AUTO`."""
     operation_type:             OperationType   = OperationType.AUTO
@@ -44,7 +46,8 @@ class RunnerConfig:
 
     This parameter is optional and defaults to /usr/local/bin/energibridge
     """
-    self_measure_bin:           Path            = "/usr/local/bin/energibridge"
+    default_energibridge = "/usr/local/bin/energibridge"
+    self_measure_bin:           Path            = Path(os.getenv("ENERGIBRIDGE_PATH", default_energibridge))
     
     """
     Where to save the full log files for energibridge. If specified, log files are saved to context.run_dir/<self_measure_logfile>.
