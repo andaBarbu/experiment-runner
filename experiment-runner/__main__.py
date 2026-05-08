@@ -55,11 +55,8 @@ def calc_ast_md5sum(src, name):
         # Ignore docstring
         if isinstance(node, (ast.AsyncFunctionDef, ast.FunctionDef, ast.ClassDef, ast.Module)) and ast.get_docstring(node) is not None:
             docstring_node = node.body[0].value
-            if isinstance(docstring_node, ast.Str):
-                docstring_node.s = ''
-            elif isinstance(docstring_node, ast.Constant) and isinstance(docstring_node.value, str):
+            if isinstance(docstring_node, ast.Constant) and isinstance(docstring_node.value, str):
                 docstring_node.value = ''
-
     return hashlib.md5(pickle.dumps(tree)).digest()
 
 

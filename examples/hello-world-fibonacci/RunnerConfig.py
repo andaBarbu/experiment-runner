@@ -16,6 +16,7 @@ import pandas as pd
 import time
 import subprocess
 import shlex
+import sys
 
 class RunnerConfig:
     ROOT_DIR = Path(dirname(realpath(__file__)))
@@ -98,8 +99,7 @@ class RunnerConfig:
                         --max-execution 20 \
                         --output {context.run_dir / "energibridge.csv"} \
                         --summary \
-                        python examples/hello-world-fibonacci/fibonacci_{fib_type}.py {problem_size}'
-
+                        {sys.executable} examples/hello-world-fibonacci/fibonacci_{fib_type}.py {problem_size}'
         energibridge_log = open(f'{context.run_dir}/energibridge.log', 'w')
         self.profiler = subprocess.Popen(shlex.split(profiler_cmd), stdout=energibridge_log)
 
