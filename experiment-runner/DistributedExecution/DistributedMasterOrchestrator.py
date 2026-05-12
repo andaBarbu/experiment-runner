@@ -1,25 +1,33 @@
 from flask import Flask, request, jsonify
 import threading
 import time
+from pathlib import Path
+import pandas as pd
+import os
+
 from ProgressManager.RunTable.Models.RunProgress import RunProgress
 
 import threading
 from ProgressManager.RunTable.Models.RunProgress import RunProgress
 
-
 class TaskManager:
 
-    def __init__(self, run_table):
+    def __init__(self, run_table, experiment_path: Path):
         self.run_table = run_table
+        self.experiment_path = experiment_path
         self.assigned_runs = {}
         self.total_runs = len(run_table)
-
-        self.lock = threading.Lock()   # ✅ FIXED (you were missing this)
+        self.lock = threading.Lock()
 
     def get_next_task(self, agent_id):
         with self.lock:
             for idx, run in enumerate(self.run_table):
                 if run['__done'] == RunProgress.TODO:
+
+                    run_id = run["__run_id"]
+
+                    run_dir = self.experiment_path / str(run_id)
+                    run_dir.mkdir(parents=True, exist_ok=True)
 
                     run['__done'] = "RUNNING"
                     run['agent_id'] = agent_id
@@ -27,7 +35,9 @@ class TaskManager:
                     run['__current_run'] = idx
                     run['__total_runs'] = self.total_runs
 
-                    self.assigned_runs[run['__run_id']] = agent_id
+                    run["run_dir"] = str(run_dir)
+
+                    self.assigned_runs[run_id] = agent_id
 
                     return run
 
@@ -37,29 +47,21 @@ class TaskManager:
         with self.lock:
             for run in self.run_table:
                 if run["__run_id"] == run_id:
+                    if data:
+                        for k, v in data.items():
+                            run[k] = v
 
-                    run.update(data)
                     run["__done"] = RunProgress.DONE
 
                     self.assigned_runs.pop(run_id, None)
-                    return
-    
-    def reset_tasks_for_agent(self, agent_id):
-        """🔥 IMPORTANT: recovery function"""
-        with self.lock:
-            for run in self.run_table:
-                if run.get("agent_id") == agent_id and run["__done"] == "RUNNING":
-                    run["__done"] = RunProgress.TODO
-                    run["agent_id"] = None
 
-            self.assigned_runs = {
-                k: v for k, v in self.assigned_runs.items()
-                if v != agent_id
-            }
-                
-class APIServer:
-    """Flask API server for distributed task management"""
-    
+                    pd.DataFrame(self.run_table).to_csv(
+                        self.experiment_path / "run_table.csv",
+                        index=False
+                    )
+                    return
+
+class APIServer:    
     def __init__(self, task_manager, worker_monitor):
         self.app = Flask(__name__)
         self.task_manager = task_manager
@@ -79,7 +81,7 @@ class APIServer:
             payload = request.get_json()
 
             run_id = payload.get('run_id')
-            run_data = payload.get('data', {})   # ✅ extract correctly
+            run_data = payload.get('data', {})   
             status = payload.get('status')
 
             if status == "FAILED":
@@ -151,10 +153,15 @@ class DistributedMasterOrchestrator:
         self.host = host
         self.port = port
 
+        self.experiment_path = config.results_output_path / config.name
+        self.experiment_path.mkdir(parents=True, exist_ok=True)
+
         run_table = config.create_run_table_model().generate_experiment_run_table()
         
-
-        self.task_manager = TaskManager(run_table)
+        self.run_table_path = self.experiment_path / "run_table.csv"
+        pd.DataFrame(run_table).to_csv(self.run_table_path, index=False)
+        
+        self.task_manager = TaskManager(run_table, self.experiment_path)
         self.monitor = WorkerMonitor(self.task_manager)
         self.api = APIServer(self.task_manager, self.monitor)
 

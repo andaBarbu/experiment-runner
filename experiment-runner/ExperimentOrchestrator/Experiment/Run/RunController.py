@@ -91,4 +91,10 @@ class RunController(IRunController):
             updated_run_data = self.run_context.execute_run
 
         updated_run_data['__done'] = RunProgress.DONE
-        self.data_manager.update_row_data(updated_run_data)
+        #self.data_manager.update_row_data(updated_run_data)
+        #return updated_run_data
+
+        if self.data_manager:
+            self.data_manager.update_row_data(updated_run_data)
+
+        return updated_run_data
