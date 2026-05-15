@@ -1,10 +1,10 @@
+from ExperimentOrchestrator.Experiment.Run.RunController import RunController
+
 import threading
 import time
 import requests
 import numpy as np
 from enum import Enum
-
-from ExperimentOrchestrator.Experiment.Run.RunController import RunController
 
 
 class WorkerRuntime:
@@ -13,18 +13,13 @@ class WorkerRuntime:
     def make_json_safe(obj):
         if isinstance(obj, dict):
             return {k: WorkerRuntime.make_json_safe(v) for k, v in obj.items()}
-
         if isinstance(obj, list):
             return [WorkerRuntime.make_json_safe(v) for v in obj]
-
         if isinstance(obj, np.generic):
             return obj.item()
-
         if isinstance(obj, Enum):
             return obj.value
-
         return obj
-
 
     def __init__(self, master_url, heartbeat_interval=40, idle_timeout=120):
         self.master_url = master_url
@@ -50,12 +45,10 @@ class WorkerRuntime:
 
         while True:
             task = self._get_task()
-
             if not task:
                 if time.time() - self.last_task_time > self.idle_timeout:
                     print("[WORKER] Idle timeout reached - exiting")
                     break
-
                 self.current_run = None
                 time.sleep(3)
                 continue
@@ -68,23 +61,15 @@ class WorkerRuntime:
             try:
                 run_data = self._execute(task, config)
                 self._send_result(run_id, run_data)
-
             except Exception as e:
                 self._send_failure(run_id, str(e))
-
             finally:
                 self.current_run = None
-
         print(f"[WORKER] Worker {self.agent_id} exiting")
 
     def _get_task(self):
         try:
-            r = requests.get(
-                self.master_url + "/task",
-                params={"agent_id": self.agent_id},
-                timeout=5
-            )
-
+            r = requests.get(self.master_url + "/task", params={"agent_id": self.agent_id}, timeout=5)
             task = r.json().get("run")
 
             if task:
@@ -102,37 +87,25 @@ class WorkerRuntime:
         current_run = run.get('__current_run', 0)
         total_runs = run.get('__total_runs', 1)
 
-        controller = RunController(run, config, current_run, total_runs)
-        controller.data_manager = None
-        result = controller.do_run()  # MUST return dict
+        controller = RunController(run, config, current_run, total_runs, distributed_mode=True)
+        result = controller.do_run()
 
         print(f"[WORKER] Task {run.get('__run_id')} completed")
-
         return result
 
     def _send_result(self, run_id, data):
         try:
             safe_data = WorkerRuntime.make_json_safe(data)
 
-            payload = {
-                "run_id": run_id,
-                "data": safe_data,
-                "status": "DONE"
-            }
+            payload = {"run_id": run_id, "data": safe_data, "status": "DONE"}
 
-            response = requests.post(
-                self.master_url + "/result",
-                json=payload,
-                timeout=10
-            )
-
+            response = requests.post(self.master_url + "/result", json=payload, timeout=10)
             response.raise_for_status()
 
             print(f"[WORKER] Result sent for task {run_id}")
 
         except requests.exceptions.RequestException as e:
             print(f"[WORKER] Network error sending result: {e}")
-
         except Exception as e:
             print(f"[WORKER] Unexpected error: {e}")
 
@@ -140,14 +113,9 @@ class WorkerRuntime:
         try:
             requests.post(
                 self.master_url + "/result",
-                json={
-                    "run_id": run_id,
-                    "status": "FAILED",
-                    "error": error
-                },
+                json={"run_id": run_id, "status": "FAILED", "error": error},
                 timeout=10
             )
-
             print(f"[WORKER] Failure sent for {run_id}")
 
         except Exception as e:
@@ -166,8 +134,6 @@ class WorkerRuntime:
                     },
                     timeout=5
                 )
-
             except Exception as e:
                 print(f"[WORKER] Heartbeat error: {e}")
-
             time.sleep(self.heartbeat_interval)
