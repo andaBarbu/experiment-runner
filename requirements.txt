@@ -5,3 +5,4 @@ dill
 jsonpickle
 flask
 requests
+waitress

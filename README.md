@@ -108,6 +108,38 @@ Your configuration files automatically use these variables if set, with sensible
 
 **More information about the profilers and use cases can be found in the [Wiki tab](https://github.com/S2-group/experiment-runner/wiki).**
 
+---
+## Remote distribution
+
+Experiment Runner supports **distributed execution across multiple machines** using a master–worker architecture.
+
+### Architecture Overview
+
+- One machine acts as the **Master (Orchestrator)**
+  - Owns the experiment `run_table`
+  - Assigns runs to workers via a REST API
+  - Tracks progress and persists experiment state
+  - Triggers lifecycle events (e.g. `AFTER_EXPERIMENT`) when finished
+
+- Multiple machines act as **Workers**
+  - Request tasks from the master
+  - Execute runs locally using the configured experiment
+  - Submit results back to the master
+
+- Communication between master and workers is handled via a lightweight **Flask-based HTTP API**
+
+### How to run it
+Start the orchestrator on the master machine:
+ ```bash
+python experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute master --host host_nr --port port_nr
+```
+On each worker machine, connect to the master:
+```bash
+experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute worker --master orchestor_adress
+```
+When the experiment finish it, the master would close automatically, the rest of the workers would need manually closing, they would close after 120s
+
+
 ## How to cite Experiment Runner
 
 If Experiment Runner is helping your research, consider to cite it as follows, thank you!
