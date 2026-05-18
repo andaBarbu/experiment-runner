@@ -3,7 +3,7 @@ Distributed Execution Module
 
 Simple framework for running experiments across multiple machines.
 """
-from .DistributedMasterOrchestrator import DistributedMasterOrchestrator, APIServer, TaskManager, WorkerMonitor
+from .DistributedOrchestrator import DistributedOrchestrator, APIServer, TaskManager, WorkerMonitor
 from .Worker import WorkerRuntime
 
 __all__ = [
@@ -11,5 +11,5 @@ __all__ = [
     'APIServer',
     'TaskManager',
     'WorkerMonitor',
-    'DistributedMasterOrchestrator',
+    'DistributedOrchestrator',
 ]

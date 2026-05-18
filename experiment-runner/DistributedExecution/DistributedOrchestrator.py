@@ -9,7 +9,20 @@ import time
 from pathlib import Path
 import pandas as pd
 import os
+from waitress import serve
 
+###     =========================================================
+###     |                                                       |
+###     |                  TaskManager                          |
+###     |       - Assign available runs to connected workers    |
+###     |       - Update and persist run_table.csv state        |
+###     |       - Trigger AFTER_EXPERIMENT lifecycle event      |
+###     |       - Detect experiment completion                  |
+###     |                                                       |
+###     |       *Any state modification to runs should happen   |
+###     |        through this class to avoid race conditions    |
+###     |                                                       |
+###     =========================================================
 class TaskManager:
 
     def __init__(self, run_table, experiment_path: Path):
@@ -20,6 +33,7 @@ class TaskManager:
         self.lock = threading.Lock()
         self.csv_manager = CSVOutputManager(experiment_path)
         self.completed = False
+        self.shutdown = False
 
     def get_next_task(self, agent_id):
         with self.lock:
@@ -105,7 +119,21 @@ class TaskManager:
             for run in self.run_table
         )
 
-
+###     =========================================================
+###     |                                                       |
+###     |                  APIServer                            |
+###     |       - Handles the communication between workers     |
+###     |           and the orchestrator                        |
+###     |               - Handle task distribution requests     |
+###     |               - Receive completed experiment results  |
+###     |               - Handle worker heartbeat updates       |
+###     |               - Receive worker heartbeat updates      |
+###     |               - Provide experiment                    |
+###     |                   monitoring/status endpoint          |
+###     |               - Trigger orchestrator shutdown         |
+###     |                                                       |
+###     |                                                       |
+###     =========================================================
 class APIServer:
 
     def __init__(self, task_manager, worker_monitor):
@@ -118,7 +146,13 @@ class APIServer:
             agent_id = request.args.get('agent_id')
             self.monitor.heartbeat(agent_id)
             task = self.task_manager.get_next_task(agent_id)
+            if self.task_manager.shutdown:
+                return jsonify({
+                    "shutdown": True,
+                    "run": None
+                })
             return jsonify({
+                "shutdown": False,
                 "run": task if task else None
             })
 
@@ -178,7 +212,23 @@ class APIServer:
                 },
                 "active_agents": len(self.monitor.heartbeats)
             })
+        
+        @self.app.route('/shutdown', methods=['POST'])
+        def shutdown():
+            shutdown_server()
+            return jsonify({"status": "shutting down"})
 
+###     =========================================================
+###     |                                                       |
+###     |                  WorkerMonitor                        |
+###     |       - Keeps track of connected workers              |
+###     |       - If a worker fails to send a heartbeat         |
+###     |         within the timeout period, it is considered   |
+###     |         dead                                          |
+###     |           - Return the assigment back to TODO         |
+###     |                                                       |
+###     |                                                       |
+###     =========================================================
 class WorkerMonitor:
 
     def __init__(self, task_manager):
@@ -215,8 +265,19 @@ class WorkerMonitor:
                 )
                 del self.heartbeats[agent]
 
+###     =========================================================
+###     |                                                       |
+###     |                  DistributedOrchestrator              |
+###     |       - Initialize experiment infrastructure          |
+###     |       - Load or create run_table.csv                  |
+###     |       - Restore interrupted experiments               |
+###     |       - Start monitoring threads                      |
+###     |       - Start the API server                          |
+###     |                                                       |
+###     |                                                       |
+###     =========================================================
 
-class DistributedMasterOrchestrator:
+class DistributedOrchestrator:
 
     def __init__(self, config, metadata, host="0.0.0.0", port=5000):
         self.config = config
@@ -264,7 +325,8 @@ class DistributedMasterOrchestrator:
         print(f"[MASTER] Starting server "
               f"on {self.host}:{self.port}")
 
-        self.api.app.run(host=self.host, port=self.port, use_reloader=False)
+        #self.api.app.run(host=self.host, port=self.port, use_reloader=False)
+        serve(self.api.app, host=self.host, port=self.port)
 
 
 def shutdown_server():

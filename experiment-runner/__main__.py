@@ -15,7 +15,7 @@ from ConfigValidator.Config.Validation.ConfigValidator import ConfigValidator
 from ConfigValidator.CustomErrors.ConfigErrors import ConfigInvalidClassNameError
 from ExperimentOrchestrator.Experiment.ExperimentController import ExperimentController
 
-from DistributedExecution.DistributedMasterOrchestrator import DistributedMasterOrchestrator
+from DistributedExecution.DistributedOrchestrator import DistributedOrchestrator
 from DistributedExecution.Worker import WorkerRuntime
 
 
@@ -88,7 +88,7 @@ if __name__ == "__main__":
                         master_host = get_flag_value('--host') or "0.0.0.0"
                         master_port = int(get_flag_value('--port') or 5000)
 
-                        orchestrator = DistributedMasterOrchestrator(
+                        orchestrator = DistributedOrchestrator(
                             config=config,
                             metadata=metadata,
                             host=master_host,

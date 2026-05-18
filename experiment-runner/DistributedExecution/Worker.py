@@ -6,7 +6,18 @@ import requests
 import numpy as np
 from enum import Enum
 
-
+### =========================================================
+### |                                                       |
+### |                  WorkerRuntime                        |
+### |                                                       |
+### |   - Connect to the master orchestrator                |
+### |   - Request experiment runs/tasks                     |
+### |   - Execute runs locally                              |
+### |   - Send results back to the master                   |
+### |   - Send periodic heartbeat updates                   |
+### |   - Gracefully shutdown on master request             |
+### |                                                       |           
+### =========================================================
 class WorkerRuntime:
 
     @staticmethod
@@ -43,8 +54,12 @@ class WorkerRuntime:
         print("[WORKER] Heartbeat thread started")
         print(f"[WORKER] Waiting for tasks (idle timeout {self.idle_timeout}s)")
 
-        while True:
+        while not self._stop:
             task = self._get_task()
+            if task == "SHUTDOWN":
+                print("[WORKER] Master shutdown acknowledged")
+                break
+
             if not task:
                 if time.time() - self.last_task_time > self.idle_timeout:
                     print("[WORKER] Idle timeout reached - exiting")
@@ -70,7 +85,12 @@ class WorkerRuntime:
     def _get_task(self):
         try:
             r = requests.get(self.master_url + "/task", params={"agent_id": self.agent_id}, timeout=5)
-            task = r.json().get("run")
+            response = r.json()
+            if response.get("shutdown"):
+                print("[WORKER] Received shutdown signal from master")
+                self._stop = True
+                return "SHUTDOWN"
+            task = response.get("run")
 
             if task:
                 print(f"[WORKER] Got task: {task.get('__run_id')}")
