@@ -88,6 +88,7 @@ class TaskManager:
             )
             if all_done and not self.completed:
                 self.completed = True
+                self.shutdown = True
                 print("\n[MASTER] ALL RUNS COMPLETED\n")
 
                 # AFTER_EXPERIMENT hook
@@ -95,7 +96,8 @@ class TaskManager:
                 EventSubscriptionController.raise_event(
                     RunnerEvents.AFTER_EXPERIMENT
                 )
-                shutdown_server()
+                #time.sleep(5)
+                #shutdown_server()
 
     def restore_crashed_runs(self):
         """
@@ -145,12 +147,16 @@ class APIServer:
         def get_task():
             agent_id = request.args.get('agent_id')
             self.monitor.heartbeat(agent_id)
-            task = self.task_manager.get_next_task(agent_id)
+            #task = self.task_manager.get_next_task(agent_id)
+
             if self.task_manager.shutdown:
                 return jsonify({
                     "shutdown": True,
                     "run": None
                 })
+            
+            task = self.task_manager.get_next_task(agent_id)
+
             return jsonify({
                 "shutdown": False,
                 "run": task if task else None
@@ -318,17 +324,38 @@ class DistributedOrchestrator:
         if self.finished_before_start:
             return
 
-        EventSubscriptionController.raise_event(RunnerEvents.BEFORE_EXPERIMENT)
+        EventSubscriptionController.raise_event(
+            RunnerEvents.BEFORE_EXPERIMENT
+        )
 
-        threading.Thread(target=self.monitor.monitor, daemon=True).start()
+        threading.Thread(
+            target=self.monitor.monitor,
+            daemon=True
+        ).start()
 
         print(f"[MASTER] Starting server "
-              f"on {self.host}:{self.port}")
+            f"on {self.host}:{self.port}")
 
-        #self.api.app.run(host=self.host, port=self.port, use_reloader=False)
-        serve(self.api.app, host=self.host, port=self.port)
+        server_thread = threading.Thread(
+            target=lambda: serve(
+                self.api.app,
+                host=self.host,
+                port=self.port
+            ),
+            daemon=True
+        )
 
+        server_thread.start()
 
+        while not self.task_manager.shutdown:
+            time.sleep(1)
+
+        print("[MASTER] Waiting for workers to shutdown...")
+        time.sleep(10)
+
+        print("[MASTER] Shutting down")
+        os._exit(0)
+        
 def shutdown_server():
     func = request.environ.get('werkzeug.server.shutdown')
     if func is None:
