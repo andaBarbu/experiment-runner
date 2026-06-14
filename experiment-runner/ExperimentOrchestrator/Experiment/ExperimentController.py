@@ -117,6 +117,15 @@ class ExperimentController:
         output.console_log_WARNING("Experiment run table created...")
 
     def do_experiment(self):
+        # -- Validate experiment setup
+        # TODO: From the user perspective, it would be nice to know if are any possible issues with the experiment before staring the experiment runs. For example, if the config hooks are not properly defined, or if there are any issues with the config file itself
+        output.console_log_WARNING("Calling validate_experiment config hook")
+        try:
+            EventSubscriptionController.raise_event(RunnerEvents.VALIDATE_EXPERIMENT)
+        except BaseError as e:
+            output.console_log_FAIL(f"Experiment validation failed: {e}")
+            raise
+        
         output.console_log_OK("Experiment setup completed...")
 
         # -- Before experiment

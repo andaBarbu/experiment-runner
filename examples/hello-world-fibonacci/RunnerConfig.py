@@ -5,6 +5,7 @@ from ConfigValidator.Config.Models.FactorModel import FactorModel
 from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
+from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
 
 from typing import Dict, Any, Optional
 from pathlib import Path
@@ -38,6 +39,7 @@ class RunnerConfig:
     def __init__(self):
 
         EventSubscriptionController.subscribe_to_multiple_events([
+            (RunnerEvents.VALIDATE_EXPERIMENT, self.validate_experiment),
             (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
             (RunnerEvents.BEFORE_RUN, self.before_run),
             (RunnerEvents.START_RUN, self.start_run),
@@ -83,6 +85,8 @@ class RunnerConfig:
         )
 
         return self.run_table_model
+    def validate_experiment(self) -> None:
+        validate_experiment_requirements(Path(__file__))
 
     def before_experiment(self) -> None:
         pass
