@@ -35,6 +35,15 @@ class RunnerConfig:
     time_between_runs_in_ms: int = 1000
 
     ENERGIBRIDGE_PATH = "/home/andabarbu/.cargo/bin/energibridge"
+    
+    enable_energy_validation:   bool            = True
+
+    """Path to log file for energy validation report. Relative to experiment output directory."""
+    energy_validation_log_file: str             = "energy_validation_report.log"
+
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
+    Only used if enable_energy_validation is True."""
+    energy_validation_columns:  List[str]       = []
 
     def __init__(self):
 

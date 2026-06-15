@@ -13,6 +13,8 @@ from ConfigValidator.Config.RunnerConfig import RunnerConfig
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from EventManager.EventSubscriptionController import EventSubscriptionController
 from ConfigValidator.CustomErrors.ProgressErrors import AllRunsCompletedOnRestartError
+from ProgressManager.Validation.EnergyValidator import EnergyValidator
+from pathlib import Path
 
 
 ###     =========================================================
@@ -162,3 +164,14 @@ class ExperimentController:
         # -- After experiment
         output.console_log_WARNING("Calling after_experiment config hook")
         EventSubscriptionController.raise_event(RunnerEvents.AFTER_EXPERIMENT)
+
+        # -- Energy validation
+        if self.config.enable_energy_validation and self.config.energy_validation_columns:
+            updated_run_table = self.csv_data_manager.read_run_table()
+            energy_report = EnergyValidator.validate_run_table(updated_run_table, self.config.energy_validation_columns)
+            
+            if energy_report.has_anomalies():
+                output.console_log_WARNING(f"Energy anomalies detected. Report saved to {log_file_path}")
+                
+                log_file_path = self.config.experiment_path / self.config.energy_validation_log_file
+                EnergyValidator.save_report_to_file(energy_report, self.config.energy_validation_columns, log_file_path)
