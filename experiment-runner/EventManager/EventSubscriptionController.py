@@ -21,13 +21,10 @@ class EventSubscriptionController:
             event_callback = EventSubscriptionController.__call_back_register[event]
         except KeyError:
             return None
-        try:
-            if runner_context:
-                return event_callback(runner_context)
-            else:
-                return event_callback()
-        except Exception as e:
-            raise BaseError(f"Error in event handler for {event.name}: {str(e)}")
+        if runner_context:
+            return event_callback(runner_context)
+        else:
+            return event_callback()
 
     @staticmethod
     def get_event_callback(event: RunnerEvents):

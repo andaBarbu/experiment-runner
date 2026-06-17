@@ -5,6 +5,7 @@ from ConfigValidator.Config.Models.FactorModel import FactorModel
 from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
+from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
 
 from Plugins.Profilers.PowerJoular import PowerJoular
 

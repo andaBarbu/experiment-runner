@@ -4,6 +4,7 @@ from ConfigValidator.Config.Models.RunTableModel import RunTableModel
 from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
+from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
 
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -56,22 +57,27 @@ class RunnerConfig:
     This parameter is optional and defaults to None, where only summary results will be saved in the run table.
     """
     self_measure_logfile:       Path            = "energibridge.log"
+    
+    """Path to log file for energy validation report. Relative to experiment output directory."""
+    energy_validation_log_file: str             = "energy_validation_report.log"
 
-    # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
-    # e.g. Setting some variable based on some criteria
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
+    Only used if enable_energy_validation is True."""
+    energy_validation_columns:  List[str]       = []
+
     def __init__(self):
-        """Executes immediately after program start, on config load"""
 
         EventSubscriptionController.subscribe_to_multiple_events([
+            (RunnerEvents.VALIDATE_EXPERIMENT, self.validate_experiment),
             (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
-            (RunnerEvents.BEFORE_RUN       , self.before_run       ),
-            (RunnerEvents.START_RUN        , self.start_run        ),
+            (RunnerEvents.BEFORE_RUN, self.before_run),
+            (RunnerEvents.START_RUN, self.start_run),
             (RunnerEvents.START_MEASUREMENT, self.start_measurement),
-            (RunnerEvents.INTERACT         , self.interact         ),
-            (RunnerEvents.STOP_MEASUREMENT , self.stop_measurement ),
-            (RunnerEvents.STOP_RUN         , self.stop_run         ),
+            (RunnerEvents.INTERACT, self.interact),
+            (RunnerEvents.STOP_MEASUREMENT, self.stop_measurement),
+            (RunnerEvents.STOP_RUN, self.stop_run),
             (RunnerEvents.POPULATE_RUN_DATA, self.populate_run_data),
-            (RunnerEvents.AFTER_EXPERIMENT , self.after_experiment )
+            (RunnerEvents.AFTER_EXPERIMENT, self.after_experiment)
         ])
         self.run_table_model = None  # Initialized later
         output.console_log("Custom config loaded")
@@ -84,6 +90,10 @@ class RunnerConfig:
             data_columns=['example_data']
         )
         return self.run_table_model
+    
+    def validate_experiment(self) -> None:
+        validate_experiment_requirements(Path(__file__))
+
 
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment here
