@@ -38,17 +38,7 @@ class RunnerConfig:
 
     """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
     Only used if enable_energy_validation is True."""
-    energy_validation_columns = [
-        "cpu_energy",
-        "core0_energy",
-        "core1_energy",
-        "core2_energy",
-        "core3_energy",
-        "core4_energy",
-        "core5_energy",
-        "core6_energy",
-        "core7_energy"
-    ]
+    energy_validation_columns = [ ]
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
