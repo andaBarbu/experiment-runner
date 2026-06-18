@@ -41,8 +41,7 @@ class RunnerConfig:
     """Path to log file for energy validation report. Relative to experiment output directory."""
     energy_validation_log_file: str             = "energy_validation_report.log"
 
-    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
-    Only used if enable_energy_validation is True."""
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
     energy_validation_columns:  List[str]       = []
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is

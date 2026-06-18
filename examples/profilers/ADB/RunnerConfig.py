@@ -46,7 +46,13 @@ class RunnerConfig:
 
     """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
     Only used if enable_energy_validation is True."""
-    energy_validation_columns = [ ]
+    energy_validation_columns = [
+    "android_battery__percentage",
+    "android_battery__temperature",
+    "android_battery__voltage",
+    "android_battery__current_now",
+    "android_battery__power_draw"
+    ]   
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria

@@ -38,12 +38,25 @@ class RunnerConfig:
     This can be essential to accommodate for cooldown periods on some systems."""
     time_between_runs_in_ms:    int             = 1000
 
+    """Path to log file for energy validation report. Relative to experiment output directory."""
+    energy_validation_log_file: str             = "energy_validation_report.log"
+
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
+    energy_validation_columns = [
+    "android_battery__percentage",
+    "android_battery__temperature",
+    "android_battery__voltage",
+    "android_battery__current_now",
+    "android_battery__power_draw"
+    ]   
+
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
     def __init__(self):
         """Executes immediately after program start, on config load"""
 
         EventSubscriptionController.subscribe_to_multiple_events([
+            (RunnerEvents.VALIDATE_EXPERIMENT, self.validate_experiment),
             (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
             (RunnerEvents.BEFORE_RUN       , self.before_run       ),
             (RunnerEvents.START_RUN        , self.start_run        ),
@@ -66,6 +79,10 @@ class RunnerConfig:
             data_columns=['avg_cpu', 'total_energy']
         )
         return self.run_table_model
+    
+    def validate_experiment(self) -> None:
+        """Perform any experiment validation here. If any validation fails, raise an exception with details on the failure."""
+        validate_experiment_requirements(Path(__file__))
 
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment here

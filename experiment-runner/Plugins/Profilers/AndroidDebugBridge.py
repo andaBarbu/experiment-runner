@@ -112,7 +112,7 @@ class AndroidBatteryMonitor(CLISource):
         patterns = {
             'percentage' : r'level:\s+(\d+)',
             'temperature': r'temperature:\s+(\d+)',
-            'voltage'    : r'voltage:\s+(\d+)',           
+            'voltage'    : r'voltage:\s*(\d+)',          
             'health'     : r'health:\s+(\d+)',
             'status'     : r'status:\s+(\d+)',
             'current_now': r'current now:\s+(-?\d+)',
@@ -129,8 +129,9 @@ class AndroidBatteryMonitor(CLISource):
             try:
                 voltage_mv = int(data['voltage'])
                 current_ua = int(data['current_now'])
-                # Power (mW) = Voltage (mV) * Current (mA) / 1000
-                power_mw = (voltage_mv * abs(current_ua)) / 1000000.0
+                voltage_v = voltage_mv / 1000.0
+                current_a = current_ua / 1_000_000.0
+                power_mw = voltage_v * abs(current_a)
                 data['power_draw'] = f"{power_mw:.2f}"
             except (ValueError, KeyError):
                 pass

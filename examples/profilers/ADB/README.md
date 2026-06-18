@@ -24,3 +24,4 @@ From the root directory of the repo, run the following command:
 
 ## Results
 The results are generated in the `examples/profilers/ADB/experiments` folder.
+In case there are anomalies such as null, absent, or negative values, a report will be generated in the `examples/profilers/ADB/experiments` folder.
