@@ -11,7 +11,7 @@ class EnergyAnomalyReport:
     
     def add_anomaly(self, run_id: str, treatment_levels: Dict[str, Any], column_name: str, value: Any):
         """Add an anomaly to the report.
-            The anomaly followes the structure:
+            The anomaly fallowes the structure:
                 run_id: The run identifier
                 treatment_levels: Dictionary of factor names to treatment levels for this run
                 column_name: The energy column name where anomaly was detected
