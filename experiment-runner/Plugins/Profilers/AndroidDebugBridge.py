@@ -205,8 +205,6 @@ class AndroidBatteryMonitor(CLISource):
             print(f"Could not parse Android battery log: {e}")
             return {}
 
-
-# Decorator functions following CodecarbonWrapper pattern
 def battery_monitor(device_serial=None, poll_interval=2, data_columns=None):
     def battery_monitor_decorator(cls):
         cols = data_columns or [col.name for col in DataColumns]
