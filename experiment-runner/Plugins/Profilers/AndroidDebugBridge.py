@@ -5,11 +5,10 @@ from enum import Enum, auto
 import re
 import subprocess
 import threading
-import time
 import csv
 from datetime import datetime
-
 import pandas as pd
+
 from Plugins.Profilers.DataSource import CLISource, ParameterDict
 from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.RunnerConfig import RunnerConfig
@@ -20,10 +19,10 @@ class DataColumns(Enum):
     BATTERY_PERCENTAGE  = auto()
     BATTERY_TEMPERATURE = auto()
     BATTERY_VOLTAGE     = auto()
+    CURRENT_NOW         = auto()
+    CHARGE_COUNTER      = auto()
     BATTERY_HEALTH      = auto()
     CHARGING_STATUS     = auto()
-    CHARGE_RATE         = auto()
-    CURRENT_NOW         = auto()
     POWER_DRAW          = auto()
 
     _PATTERN = re.compile(r'(android_battery__)(.+)')
@@ -32,25 +31,15 @@ class DataColumns(Enum):
     def name(self) -> str:
         return f'android_battery__{super().name.lower()}'
 
-
 class AndroidBatteryMonitor(CLISource):
     """Monitor battery and energy metrics from Android devices via ADB during experiment execution.
-    This plugin connects to Android devices via ADB and periodically collects battery statistics.
-    """
+    This plugin connects to Android devices via ADB and periodically collects battery statistics."""
     source_name = "adb"
     supported_platforms = ["Linux", "Darwin"]
 
     ANDROID_BATTERY_PARAMETERS = {}
     
     def __init__(self, device_serial: Optional[str] = None, poll_interval: int = 2, out_file: Path = "android_battery.csv", data_columns: Optional[Iterable[str]] = None):
-        """
-        Initialize AndroidBatteryMonitor.
-        Args:
-            device_serial: ADB device serial. If None, uses first connected device.
-            poll_interval: Interval in seconds between battery stat polls.
-            out_file: Path for CSV output file.
-            data_columns: List of data columns to collect (defaults to all available).
-        """
         super().__init__()
         
         self.device_serial = device_serial
@@ -58,11 +47,7 @@ class AndroidBatteryMonitor(CLISource):
         self.logfile = out_file
         self.stop_monitoring = threading.Event()
         self.monitoring_thread = None
-        self.measurements = []
         self.monitor_error: Optional[Exception] = None
-        
-        # Store data columns for later reference
-        self.selected_data_columns = data_columns or [col.name for col in DataColumns]
         
         # Validate ADB availability
         self._validate_adb_available()
@@ -76,9 +61,9 @@ class AndroidBatteryMonitor(CLISource):
         try:
             result = subprocess.run(['adb', 'version'], capture_output=True, timeout=5)
             if result.returncode != 0:
-                raise RuntimeError("ADB version check failed")
+                raise RuntimeError("ADB version check failed.")
         except FileNotFoundError:
-            raise RuntimeError("ADB not found. Please install Android SDK Platform Tools")
+            raise RuntimeError("ADB not found.")
         except subprocess.TimeoutExpired:
             raise RuntimeError("ADB timeout - check ADB installation")
     
@@ -97,9 +82,9 @@ class AndroidBatteryMonitor(CLISource):
                 continue
             if "\tdevice" in line:
                 devices.append(line.split()[0])
-
         if not devices:
             raise RuntimeError("No ADB devices found")
+        
         return devices[0]
 
     def _parse_battery_data(self, dumpsys_output: str) -> Dict[str, Any]:
@@ -107,22 +92,20 @@ class AndroidBatteryMonitor(CLISource):
         data = {}
         if not dumpsys_output:
             return data
-        
-        # Extract battery metrics
+
         patterns = {
-            'percentage' : r'level:\s+(\d+)',
-            'temperature': r'temperature:\s+(\d+)',
-            'voltage'    : r'voltage:\s*(\d+)',          
-            'health'     : r'health:\s+(\d+)',
-            'status'     : r'status:\s+(\d+)',
-            'current_now': r'current now:\s+(-?\d+)',
-            'charge_rate': r'current now:\s+(-?\d+)',
-        }
+            'percentage'     : r'^\s*level:\s+(\d+)',
+            'temperature'    : r'^\s*temperature:\s+(\d+)',
+            'voltage'        : r'^\s*voltage:\s+(\d+)',
+            'health'         : r'^\s*health:\s+(\d+)',
+            'status'         : r'^\s*status:\s+(\d+)',
+            'current_now'    : r'^\s*current now:\s+(-?\d+)',
+            'charge_counter' : r'^\s*charge counter:\s+(\d+)',
+        }        
         
         for key, pattern in patterns.items():
-            match = re.search(pattern, dumpsys_output)
-            if match:
-                data[key] = match.group(1)
+            match = re.search(pattern,  dumpsys_output, re.MULTILINE)
+            if match: data[key] = match.group(1)
         
         # Calculate power draw estimate
         if 'voltage' in data and 'current_now' in data:
@@ -130,8 +113,8 @@ class AndroidBatteryMonitor(CLISource):
                 voltage_mv = int(data['voltage'])
                 current_ua = int(data['current_now'])
                 voltage_v = voltage_mv / 1000.0
-                current_a = current_ua / 1_000_000.0
-                power_mw = voltage_v * abs(current_a)
+                current_ma = abs(float(data["current_now"]))
+                power_mw = voltage_v * current_ma
                 data['power_draw'] = f"{power_mw:.2f}"
             except (ValueError, KeyError):
                 pass
@@ -166,7 +149,7 @@ class AndroidBatteryMonitor(CLISource):
                     'health',
                     'status',
                     'current_now',
-                    'charge_rate',
+                    'charge_counter',
                     'power_draw'
                 ]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -195,7 +178,7 @@ class AndroidBatteryMonitor(CLISource):
             self.monitor_error = e
             self.stop_monitoring.set()
 
-    def stop(self, wait=False) -> str:
+    def stop(self) -> str:
         if not self.monitoring_thread:
             return ""
         self.stop_monitoring.set()
@@ -236,7 +219,6 @@ def battery_monitor(device_serial=None, poll_interval=2, data_columns=None):
 
     return battery_monitor_decorator
 
-
 def start_battery_monitor(device_serial: Optional[str] = None, poll_interval: int = 2):
     def start_battery_monitor_decorator(func):
         def wrapper(*args, **kwargs):
@@ -252,18 +234,16 @@ def start_battery_monitor(device_serial: Optional[str] = None, poll_interval: in
 
     return start_battery_monitor_decorator
 
-
 def stop_battery_monitor(func):
     def wrapper(*args, **kwargs):
         self: RunnerConfig = args[0]
         ret_val = func(*args, **kwargs)
 
         if hasattr(self, "__android_battery_monitor__"):
-            self.__android_battery_monitor__.stop(wait=True)
+            self.__android_battery_monitor__.stop()
         return ret_val
 
     return wrapper
-
 
 def add_data_columns(data_cols: Iterable[str]):
     """Decorator to add Android battery data columns to run table."""
@@ -282,7 +262,6 @@ def add_data_columns(data_cols: Iterable[str]):
 
     return add_data_columns_decorator
 
-
 def populate_data_columns(func):
     def wrapper(*args, **kwargs):
         self: RunnerConfig = args[0]
@@ -292,7 +271,6 @@ def populate_data_columns(func):
             ret_val = {}
         if not hasattr(self, "__android_battery_monitor__"):
             return ret_val
-
         try:
             df = pd.read_csv(self.__android_battery_monitor__.logfile)
             if df.empty:
