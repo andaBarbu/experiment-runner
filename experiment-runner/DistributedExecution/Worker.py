@@ -1,4 +1,6 @@
 from ExperimentOrchestrator.Experiment.Run.RunController import RunController
+from EventManager.EventSubscriptionController import EventSubscriptionController 
+from EventManager.Models.RunnerEvents import RunnerEvents
 
 import threading
 import time
@@ -48,6 +50,11 @@ class WorkerRuntime:
 
         print(f"[WORKER] Starting with agent_id: {self.agent_id}")
         print(f"[WORKER] Master URL: {self.master_url}")
+
+        print("[WORKER] Validating experiment setup")
+        EventSubscriptionController.raise_event(
+            RunnerEvents.VALIDATE_EXPERIMENT
+        )
 
         threading.Thread(target=self._heartbeat_loop, daemon=True).start()
 

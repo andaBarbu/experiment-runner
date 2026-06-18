@@ -304,7 +304,6 @@ class DistributedOrchestrator:
             print("[MASTER] Creating new experiment")
 
             run_table = (config.create_run_table_model().generate_experiment_run_table())
-
             pd.DataFrame(run_table).to_csv(self.run_table_path, index=False)
 
         self.task_manager = TaskManager(run_table, self.experiment_path)
@@ -323,6 +322,10 @@ class DistributedOrchestrator:
     def start(self):
         if self.finished_before_start:
             return
+        
+        EventSubscriptionController.raise_event(
+            RunnerEvents.VALIDATE_EXPERIMENT
+        )
 
         EventSubscriptionController.raise_event(
             RunnerEvents.BEFORE_EXPERIMENT

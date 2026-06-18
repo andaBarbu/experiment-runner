@@ -5,6 +5,7 @@ from ConfigValidator.Config.Models.FactorModel import FactorModel
 from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
+from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
 
 from typing import Dict, List, Any, Optional
 from pathlib import Path
@@ -32,21 +33,31 @@ class RunnerConfig:
     This can be essential to accommodate for cooldown periods on some systems."""
     time_between_runs_in_ms:    int             = 1000
 
+    """Path to log file for energy validation report. Relative to experiment output directory."""
+    energy_validation_log_file: str             = "energy_validation_report.log"
+
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
+    energy_validation_columns = [ 
+        "avg_cpu",
+        "avg_mem"
+    ]
+
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
     def __init__(self):
         """Executes immediately after program start, on config load"""
 
         EventSubscriptionController.subscribe_to_multiple_events([
-            (RunnerEvents.BEFORE_EXPERIMENT, self.before_experiment),
-            (RunnerEvents.BEFORE_RUN       , self.before_run       ),
-            (RunnerEvents.START_RUN        , self.start_run        ),
-            (RunnerEvents.START_MEASUREMENT, self.start_measurement),
-            (RunnerEvents.INTERACT         , self.interact         ),
-            (RunnerEvents.STOP_MEASUREMENT , self.stop_measurement ),
-            (RunnerEvents.STOP_RUN         , self.stop_run         ),
-            (RunnerEvents.POPULATE_RUN_DATA, self.populate_run_data),
-            (RunnerEvents.AFTER_EXPERIMENT , self.after_experiment )
+            (RunnerEvents.VALIDATE_EXPERIMENT, self.validate_experiment),
+            (RunnerEvents.BEFORE_EXPERIMENT  , self.before_experiment),
+            (RunnerEvents.BEFORE_RUN         , self.before_run       ),
+            (RunnerEvents.START_RUN          , self.start_run        ),
+            (RunnerEvents.START_MEASUREMENT  , self.start_measurement),
+            (RunnerEvents.INTERACT           , self.interact         ),
+            (RunnerEvents.STOP_MEASUREMENT   , self.stop_measurement ),
+            (RunnerEvents.STOP_RUN           , self.stop_run         ),
+            (RunnerEvents.POPULATE_RUN_DATA  , self.populate_run_data),
+            (RunnerEvents.AFTER_EXPERIMENT   , self.after_experiment )
         ])
         self.run_table_model = None  # Initialized later
 
@@ -67,6 +78,11 @@ class RunnerConfig:
             data_columns=['avg_cpu', 'avg_mem']
         )
         return self.run_table_model
+    
+    def validate_experiment(self) -> None:
+        """Perform any experiment validation here. If any validation fails, raise an exception with details on the failure."""
+        validate_experiment_requirements(Path(__file__))
+        output.console_log("Config.validate_experiment() called!")
 
     def before_experiment(self) -> None:
         """Perform any activity required before starting the experiment here
