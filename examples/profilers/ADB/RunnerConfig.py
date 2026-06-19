@@ -6,8 +6,8 @@ from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
-
 from Plugins.Profilers.AndroidDebugBridge import AndroidBatteryMonitor, battery_monitor
+
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from os.path import dirname, realpath
@@ -15,7 +15,6 @@ import time
 
 @battery_monitor(
     device_serial=None,
-    poll_interval=1,
     data_columns=[
         'battery_percentage',
         'battery_temperature',
@@ -44,8 +43,7 @@ class RunnerConfig:
     """Path to log file for energy validation report. Relative to experiment output directory."""
     energy_validation_log_file: str             = "energy_validation_report.log"
 
-    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts']).
-    Only used if enable_energy_validation is True."""
+    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
     energy_validation_columns = [
     "android_battery__percentage",
     "android_battery__temperature",
@@ -108,11 +106,7 @@ class RunnerConfig:
         output.console_log(f"Preparing device for run...")
 
     def start_run(self, context: RunnerContext) -> None:
-        """Start a single experiment run.
-        
-        In a real scenario, this would start your Android app or workload.
-        For this example, we just wait a bit.
-        """
+        """Start a single experiment run."""
         output.console_log("Config.start_run() called!")
 
     def start_measurement(self, context: RunnerContext) -> None:
@@ -148,12 +142,7 @@ class RunnerConfig:
         output.console_log(f"Stopped run: {context.execute_run['__run_id']}")
 
     def populate_run_data(self, context: RunnerContext) -> Optional[Dict[str, Any]]:
-        """Populate data columns for this run.
-        
-        The @AndroidEnergyMonitor.energy_monitor decorator automatically
-        populates energy-related columns. This method can add custom data.
-        """
-        # In a real scenario, you would parse workload results here
+        """Populate data columns for this run. """
         workload = context.execute_run['workload']
         
         duration_ms = {
