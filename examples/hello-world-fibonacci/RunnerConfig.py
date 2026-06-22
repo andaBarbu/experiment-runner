@@ -39,19 +39,6 @@ class RunnerConfig:
     """Path to log file for energy validation report. Relative to experiment output directory."""
     energy_validation_log_file: str             = "energy_validation_report.log"
 
-    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
-    energy_validation_columns:  List[str]       = [ 
-    "cpu_energy", 
-    "core0_energy", 
-    "core1_energy", 
-    "core2_energy", 
-    "core3_energy", 
-    "core4_energy", 
-    "core5_energy", 
-    "core6_energy", 
-    "core7_energy" 
-    ]
-
     def __init__(self):
 
         EventSubscriptionController.subscribe_to_multiple_events([

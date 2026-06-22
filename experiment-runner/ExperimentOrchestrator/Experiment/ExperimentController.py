@@ -194,4 +194,4 @@ class ExperimentController:
         if combined_report.has_anomalies():
             log_file_path = (self.config.experiment_path / self.config.energy_validation_log_file)
             output.console_log_WARNING(f"Anomalies detected. Report saved to {log_file_path}")
-            ResultsValidator.save_report_to_file(combined_report, og_file_path)
+            ResultsValidator.save_report_to_file(combined_report, log_file_path)

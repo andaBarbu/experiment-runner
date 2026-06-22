@@ -1,6 +1,7 @@
 from ExperimentOrchestrator.Experiment.Run.RunController import RunController
 from EventManager.EventSubscriptionController import EventSubscriptionController 
 from EventManager.Models.RunnerEvents import RunnerEvents
+from ProgressManager.Validation.EnergyValidator import ResultsValidator
 
 import threading
 import time
@@ -21,7 +22,6 @@ from enum import Enum
 ### |                                                       |           
 ### =========================================================
 class WorkerRuntime:
-
     @staticmethod
     def make_json_safe(obj):
         if isinstance(obj, dict):
@@ -81,8 +81,8 @@ class WorkerRuntime:
             run_id = task["__run_id"]
 
             try:
-                run_data = self._execute(task, config)
-                self._send_result(run_id, run_data)
+                run_data, anomaly_report = self._execute(task, config)
+                self._send_result(run_id, run_data, anomaly_report)
             except Exception as e:
                 self._send_failure(run_id, str(e))
             finally:
@@ -115,16 +115,37 @@ class WorkerRuntime:
         total_runs = run.get('__total_runs', 1)
 
         controller = RunController(run, config, current_run, total_runs, distributed_mode=True)
-        result = controller.do_run()
+        run_data = controller.do_run()
 
+        run_id = run["__run_id"]
+
+        treatment_levels = {
+            k: v
+            for k, v in run.items()
+            if not k.startswith("__")
+        }
+
+        run_dir = config.experiment_path / run_id
+
+        anomaly_report = ResultsValidator.validate_output_log(
+            run_dir,
+            run_id,
+            treatment_levels
+        )
+
+        
         print(f"[WORKER] Task {run.get('__run_id')} completed")
-        return result
+        return run_data, anomaly_report
 
-    def _send_result(self, run_id, data):
+    def _send_result(self, run_id, data, anomaly_report = None):
         try:
             safe_data = WorkerRuntime.make_json_safe(data)
 
-            payload = {"run_id": run_id, "data": safe_data, "status": "DONE"}
+            payload = {"run_id": run_id, "data": safe_data, "status": "DONE", "anomalies": (
+                    anomaly_report.anomalies
+                    if anomaly_report and anomaly_report.has_anomalies()
+                    else []
+                )}
 
             response = requests.post(self.master_url + "/result", json=payload, timeout=10)
             response.raise_for_status()

@@ -2,6 +2,10 @@ from ProgressManager.RunTable.Models.RunProgress import RunProgress
 from ProgressManager.Output.CSVOutputManager import CSVOutputManager
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
+from ProgressManager.Validation.EnergyValidator import (
+    ResultsValidator,
+    AnomalyReport
+)
 
 from flask import Flask, request, jsonify
 import threading
@@ -34,6 +38,7 @@ class TaskManager:
         self.csv_manager = CSVOutputManager(experiment_path)
         self.completed = False
         self.shutdown = False
+        self.validation_results = {}
 
     def get_next_task(self, agent_id):
         with self.lock:
@@ -138,11 +143,12 @@ class TaskManager:
 ###     =========================================================
 class APIServer:
 
-    def __init__(self, task_manager, worker_monitor):
+    def __init__(self, task_manager, worker_monitor, validation_results):
         self.app = Flask(__name__)
         self.task_manager = task_manager
         self.monitor = worker_monitor
-
+        self.validation_results = validation_results
+        
         @self.app.route('/task', methods=['GET'])
         def get_task():
             agent_id = request.args.get('agent_id')
@@ -168,6 +174,7 @@ class APIServer:
             run_id = payload.get('run_id')
             run_data = payload.get('data', {})
             status = payload.get('status')
+            anomalies = request.json.get("anomalies", [])
 
             if status == "FAILED":
                 print(f"[MASTER] Run failed: {run_id}")
@@ -183,6 +190,10 @@ class APIServer:
                 )
             else:
                 self.task_manager.complete_task(run_id, run_data)
+                if anomalies:
+                    report = AnomalyReport()
+                    report.anomalies.extend(anomalies)
+                    self.validation_results[run_id] = report
             return jsonify({"status": "ok"})
 
         @self.app.route('/heartbeat', methods=['POST'])
@@ -290,6 +301,7 @@ class DistributedOrchestrator:
         self.metadata = metadata
         self.host = host
         self.port = port
+        self.validation_results = {}
 
         self.experiment_path = (config.results_output_path / config.name)
         self.experiment_path.mkdir(parents=True, exist_ok=True)
@@ -317,7 +329,7 @@ class DistributedOrchestrator:
             self.finished_before_start = False
         self.monitor = WorkerMonitor(self.task_manager)
 
-        self.api = APIServer(self.task_manager, self.monitor)
+        self.api = APIServer(self.task_manager, self.monitor, self.validation_results)
 
     def start(self):
         if self.finished_before_start:
@@ -355,6 +367,21 @@ class DistributedOrchestrator:
 
         print("[MASTER] Waiting for workers to shutdown...")
         time.sleep(10)
+        combined_report = AnomalyReport()
+
+        for report in self.validation_results.values():
+            combined_report.anomalies.extend(report.anomalies)
+
+        if combined_report.has_anomalies():
+            log_file_path = (
+                self.experiment_path
+                / self.config.energy_validation_log_file
+            )
+
+            ResultsValidator.save_report_to_file(
+                combined_report,
+                log_file_path
+            )
 
         print("[MASTER] Shutting down")
         os._exit(0)
