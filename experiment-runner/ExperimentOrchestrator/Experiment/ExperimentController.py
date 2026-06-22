@@ -38,6 +38,7 @@ class ExperimentController:
     def __init__(self, config: RunnerConfig, metadata: Metadata):
         self.config = config
         self.metadata = metadata
+        self.validation_results: dict[str, AnomalyReport] = {}
 
         self.csv_data_manager = CSVOutputManager(self.config.experiment_path)
         self.json_data_manager = JSONOutputManager(self.config.experiment_path)
@@ -153,7 +154,23 @@ class ExperimentController:
             )
             perform_run.start()
             perform_run.join()
+            
+            run_id = current_run["__run_id"]
+            treatment_levels = {
+                k: v
+                for k, v in current_run.items()
+                if not k.startswith("__")
+            }
 
+            run_dir = self.config.experiment_path / run_id
+            run_report = ResultsValidator.validate_output_log(
+                run_dir,
+                run_id,
+                treatment_levels,
+            )
+            if run_report.has_anomalies():
+                self.validation_results[run_id] = run_report
+            
             time_btwn_runs = self.config.time_between_runs_in_ms
             if time_btwn_runs > 0:
                 output.console_log_bold(f"Run fully ended, waiting for: {time_btwn_runs}ms == {time_btwn_runs / 1000}s")
@@ -168,23 +185,13 @@ class ExperimentController:
         output.console_log_WARNING("Calling after_experiment config hook")
         EventSubscriptionController.raise_event(RunnerEvents.AFTER_EXPERIMENT)
 
-        # -- Energy validation
-        final_report = AnomalyReport()
-        for run in self.run_table:
-            run_id = run["__run_id"]
-            treatment_levels = {
-                k: v for k, v in run.items()
-                if not k.startswith("__")
-            }
-            run_dir = self.config.experiment_path / run_id
-            run_report = ResultsValidator.validate_output_log(
-                run_dir,
-                run_id,
-                treatment_levels,
-            )
-            final_report.anomalies.extend(run_report.anomalies)
+       # -- Validation summary
+        combined_report = AnomalyReport()
 
-        if final_report.has_anomalies():
-            log_file_path = self.config.experiment_path / self.config.energy_validation_log_file
-            output.console_log_WARNING(f"Signal anomalies detected. Report saved to {log_file_path}")
-            ResultsValidator.save_report_to_file(final_report, log_file_path)
+        for report in self.validation_results.values():
+            combined_report.anomalies.extend(report.anomalies)
+
+        if combined_report.has_anomalies():
+            log_file_path = (self.config.experiment_path / self.config.energy_validation_log_file)
+            output.console_log_WARNING(f"Anomalies detected. Report saved to {log_file_path}")
+            ResultsValidator.save_report_to_file(combined_report, og_file_path)
