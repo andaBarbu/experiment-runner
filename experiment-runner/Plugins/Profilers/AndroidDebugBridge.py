@@ -32,8 +32,7 @@ class DataColumns(Enum):
         return f'android_battery__{super().name.lower()}'
 
 class AndroidBatteryMonitor(CLISource):
-    """Monitor battery and energy metrics from Android devices via ADB during experiment execution.
-    This plugin connects to Android devices via ADB and periodically collects battery statistics."""
+    """Monitor battery and energy metrics from Android devices via ADB during experiment execution."""
     source_name = "adb"
     supported_platforms = ["Linux", "Darwin"]
 
@@ -178,16 +177,19 @@ class AndroidBatteryMonitor(CLISource):
             self.monitor_error = e
             self.stop_monitoring.set()
 
-    def stop(self) -> str:
+    def stop(self):
         if not self.monitoring_thread:
             return ""
-        self.stop_monitoring.set()
-        self.monitoring_thread.join()
-        if self.monitor_error:
-            raise RuntimeError(f"AndroidBatteryMonitor failed: {self.monitor_error}")
-        self.monitoring_thread = None
 
-        return str(self.logfile)
+        print("STOP: setting event")
+
+        self.stop_monitoring.set()
+
+        print("STOP: joining thread")
+
+        self.monitoring_thread.join()
+
+        print("STOP: thread joined")
     
     def __del__(self):
         """Cleanup on deletion."""
@@ -227,9 +229,7 @@ def start_battery_monitor(device_serial: Optional[str] = None, poll_interval: in
             self.__android_battery_monitor__ = (AndroidBatteryMonitor(device_serial=device_serial, poll_interval=poll_interval, out_file=logfile))
             self.__android_battery_monitor__.start()
             return func(*args, **kwargs)
-
         return wrapper
-
     return start_battery_monitor_decorator
 
 def stop_battery_monitor(func):
@@ -269,8 +269,15 @@ def populate_data_columns(func):
             ret_val = {}
         if not hasattr(self, "__android_battery_monitor__"):
             return ret_val
+
+        logfile = self.__android_battery_monitor__.logfile
+
+        if not logfile.exists():
+            return ret_val
+
         try:
-            df = pd.read_csv(self.__android_battery_monitor__.logfile)
+            df = pd.read_csv(logfile)
+
             if df.empty:
                 return ret_val
 

@@ -36,6 +36,10 @@ class RequirementCheckResult:
 ###     |                                                       |
 ###     =========================================================
 PROFILER_DEPS = {
+    "AndroidDebugBridge":{
+        "tools": ["adb"],
+        "python_modules": [],
+    },
     "JoularCore": {
         "tools": ["java"],
         "python_modules": ["jpype"],

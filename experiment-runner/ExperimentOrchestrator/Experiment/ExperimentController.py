@@ -13,7 +13,10 @@ from ConfigValidator.Config.RunnerConfig import RunnerConfig
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from EventManager.EventSubscriptionController import EventSubscriptionController
 from ConfigValidator.CustomErrors.ProgressErrors import AllRunsCompletedOnRestartError
-from ProgressManager.Validation.EnergyValidator import EnergyValidator
+from ProgressManager.Validation.EnergyValidator import (
+    ResultsValidator,
+    AnomalyReport
+)
 from pathlib import Path
 
 
@@ -166,12 +169,22 @@ class ExperimentController:
         EventSubscriptionController.raise_event(RunnerEvents.AFTER_EXPERIMENT)
 
         # -- Energy validation
-        if self.config.energy_validation_columns:
-            updated_run_table = self.csv_data_manager.read_run_table()
-            energy_report = EnergyValidator.validate_run_table(updated_run_table, self.config.energy_validation_columns)
-            
-            if energy_report.has_anomalies():
-                log_file_path = (self.config.experiment_path / self.config.energy_validation_log_file)
+        final_report = AnomalyReport()
+        for run in self.run_table:
+            run_id = run["__run_id"]
+            treatment_levels = {
+                k: v for k, v in run.items()
+                if not k.startswith("__")
+            }
+            run_dir = self.config.experiment_path / run_id
+            run_report = ResultsValidator.validate_output_log(
+                run_dir,
+                run_id,
+                treatment_levels,
+            )
+            final_report.anomalies.extend(run_report.anomalies)
 
-                output.console_log_WARNING(f"Energy anomalies detected. Report saved to {log_file_path}")
-                EnergyValidator.save_report_to_file(energy_report, self.config.energy_validation_columns, log_file_path)
+        if final_report.has_anomalies():
+            log_file_path = self.config.experiment_path / self.config.energy_validation_log_file
+            output.console_log_WARNING(f"Signal anomalies detected. Report saved to {log_file_path}")
+            ResultsValidator.save_report_to_file(final_report, log_file_path)

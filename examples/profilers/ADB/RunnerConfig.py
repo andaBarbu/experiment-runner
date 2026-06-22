@@ -44,13 +44,7 @@ class RunnerConfig:
     energy_validation_log_file: str             = "energy_validation_report.log"
 
     """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
-    energy_validation_columns = [
-    "android_battery__percentage",
-    "android_battery__temperature",
-    "android_battery__voltage",
-    "android_battery__current_now",
-    "android_battery__power_draw"
-    ]   
+    
 
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
@@ -85,7 +79,7 @@ class RunnerConfig:
         
         self.run_table_model = RunTableModel(
             factors=[workload_factor, screen_factor],
-            repetitions=3,
+            repetitions=1,
             # Add custom data columns (energy columns are added by decorator)
             data_columns=['workload_duration_ms', 'task_completion_status']
         )
