@@ -11,7 +11,6 @@ META_COLUMNS = {
 }
 
 class AnomalyReport:
-
     def __init__(self):
         self.anomalies: List[Dict[str, Any]] = []
 
@@ -101,12 +100,7 @@ class ResultsValidator:
         return "\n".join(lines)
 
     @staticmethod
-    def validate_output_log(
-        run_dir: Path,
-        run_id: str,
-        treatment_levels: Dict[str, Any],
-    ) -> AnomalyReport:
-
+    def validate_output_log(run_dir: Path,run_id: str,treatment_levels: Dict[str, Any],) -> AnomalyReport:
         report = AnomalyReport()
 
         csv_files = list(run_dir.glob("*.csv"))
