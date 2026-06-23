@@ -11,19 +11,21 @@ META_COLUMNS = {
 }
 
 class AnomalyReport:
+
     def __init__(self):
         self.anomalies: List[Dict[str, Any]] = []
 
-    def add_anomaly(
-        self,
-        run_id: str,
-        treatment_levels: Dict[str, Any],
-        file_path: str,
-        row_number: int,
-        column_name: str,
-        value: Any,
-        anomaly_type: str
-    ):
+    """
+    Each anomaly detected has the following structure:
+        "run_id": the run where is located
+        "treatment_levels": the specific values of the run
+        "file_path": the file path
+        "row_number": the row where is located
+        "column_name": the column where is located
+        "value": the value
+        "anomaly_type": NAN or Zero or Negative Number or Missing file
+    """
+    def add_anomaly(self, run_id: str, treatment_levels: Dict[str, Any], file_path: str, row_number: int, column_name: str, value: Any, anomaly_type: str):
         self.anomalies.append({
             "run_id": run_id,
             "treatment_levels": treatment_levels,
