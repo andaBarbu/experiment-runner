@@ -39,7 +39,13 @@ class AnomalyReport:
 
 
 class ResultsValidator:
-
+    """
+        Validates experiment output logs and detects:
+        - NaN values
+        - negative values
+        - zero values
+        - missing files
+    """
     @staticmethod
     def _detect_numeric_columns(df: pd.DataFrame) -> List[str]:
         """

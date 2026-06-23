@@ -1,7 +1,7 @@
 from ExperimentOrchestrator.Experiment.Run.RunController import RunController
 from EventManager.EventSubscriptionController import EventSubscriptionController 
 from EventManager.Models.RunnerEvents import RunnerEvents
-from ProgressManager.Validation.EnergyValidator import ResultsValidator
+from ProgressManager.Validation.AnomaliesChecker import ResultsValidator
 
 import threading
 import time
@@ -15,7 +15,7 @@ from enum import Enum
 ### |                                                       |
 ### |   - Connect to the master orchestrator                |
 ### |   - Request experiment runs/tasks                     |
-### |   - Execute runs locally                              |
+### |   - Execute runs locally + anomalies check            |
 ### |   - Send results back to the master                   |
 ### |   - Send periodic heartbeat updates                   |
 ### |   - Gracefully shutdown on master request             |
@@ -116,23 +116,20 @@ class WorkerRuntime:
 
         controller = RunController(run, config, current_run, total_runs, distributed_mode=True)
         run_data = controller.do_run()
-
         run_id = run["__run_id"]
 
+        # Check for anomalies in the run raw result
         treatment_levels = {
             k: v
             for k, v in run.items()
             if not k.startswith("__")
         }
-
         run_dir = config.experiment_path / run_id
-
         anomaly_report = ResultsValidator.validate_output_log(
             run_dir,
             run_id,
             treatment_levels
         )
-
         
         print(f"[WORKER] Task {run.get('__run_id')} completed")
         return run_data, anomaly_report

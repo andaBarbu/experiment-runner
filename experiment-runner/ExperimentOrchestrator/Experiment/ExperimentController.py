@@ -13,7 +13,7 @@ from ConfigValidator.Config.RunnerConfig import RunnerConfig
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from EventManager.EventSubscriptionController import EventSubscriptionController
 from ConfigValidator.CustomErrors.ProgressErrors import AllRunsCompletedOnRestartError
-from ProgressManager.Validation.EnergyValidator import (
+from ProgressManager.Validation.AnomaliesChecker import (
     ResultsValidator,
     AnomalyReport
 )
@@ -155,6 +155,7 @@ class ExperimentController:
             perform_run.start()
             perform_run.join()
             
+            # -- Checks for anomalies in the run raw result
             run_id = current_run["__run_id"]
             treatment_levels = {
                 k: v
@@ -185,7 +186,7 @@ class ExperimentController:
         output.console_log_WARNING("Calling after_experiment config hook")
         EventSubscriptionController.raise_event(RunnerEvents.AFTER_EXPERIMENT)
 
-       # -- Validation summary
+       # -- Anomalies Report creation
         combined_report = AnomalyReport()
 
         for report in self.validation_results.values():

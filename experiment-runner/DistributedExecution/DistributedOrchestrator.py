@@ -2,10 +2,7 @@ from ProgressManager.RunTable.Models.RunProgress import RunProgress
 from ProgressManager.Output.CSVOutputManager import CSVOutputManager
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
-from ProgressManager.Validation.EnergyValidator import (
-    ResultsValidator,
-    AnomalyReport
-)
+from ProgressManager.Validation.AnomaliesChecker import ResultsValidator, AnomalyReport
 
 from flask import Flask, request, jsonify
 import threading
@@ -290,6 +287,8 @@ class WorkerMonitor:
 ###     |       - Restore interrupted experiments               |
 ###     |       - Start monitoring threads                      |
 ###     |       - Start the API server                          |
+###     |       - If anomalies are present combined them        |
+###     |         into a report                                 |
 ###     |                                                       |
 ###     |                                                       |
 ###     =========================================================

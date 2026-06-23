@@ -6,23 +6,13 @@ from ConfigValidator.Config.Models.RunnerContext import RunnerContext
 from ConfigValidator.Config.Models.OperationType import OperationType
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 from ProgressManager.Validation.RequirementsValidator import (validate_experiment_requirements)
-from Plugins.Profilers.AndroidDebugBridge import AndroidBatteryMonitor, battery_monitor
+from Plugins.Profilers.AndroidDebugBridge import AndroidBatteryMonitor
 
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from os.path import dirname, realpath
 import time
 
-@battery_monitor(
-    device_serial=None,
-    data_columns=[
-        'battery_percentage',
-        'battery_temperature',
-        'battery_voltage',
-        'charge_rate',
-        'power_draw'
-    ]
-)
 class RunnerConfig:
     ROOT_DIR = Path(dirname(realpath(__file__)))
 
@@ -39,17 +29,14 @@ class RunnerConfig:
     """Time between runs (cooldown period)"""
     time_between_runs_in_ms: int = 3000
     
-    
     """Path to log file for energy validation report. Relative to experiment output directory."""
     energy_validation_log_file: str             = "energy_validation_report.log"
-
-    """List of data column names that contain energy measurements (e.g., ['energy', 'joules', 'watts'])."""
     
-
     # Dynamic configurations can be one-time satisfied here before the program takes the config as-is
     # e.g. Setting some variable based on some criteria
     def __init__(self):
         """Executes immediately after program start, on config load"""
+        self.profiler = None 
 
         EventSubscriptionController.subscribe_to_multiple_events([
             (RunnerEvents.VALIDATE_EXPERIMENT, self.validate_experiment),
@@ -69,9 +56,6 @@ class RunnerConfig:
 
     def create_run_table_model(self) -> RunTableModel:
         """Define the experimental design with factors and data columns.
-        
-        Note: The @AndroidEnergyMonitor.energy_monitor decorator automatically
-        adds energy data columns to this model.
         """
         # Define experimental factors
         workload_factor = FactorModel("workload", ['light', 'medium', 'heavy'])
@@ -80,7 +64,6 @@ class RunnerConfig:
         self.run_table_model = RunTableModel(
             factors=[workload_factor, screen_factor],
             repetitions=1,
-            # Add custom data columns (energy columns are added by decorator)
             data_columns=['workload_duration_ms', 'task_completion_status']
         )
         return self.run_table_model
@@ -90,22 +73,32 @@ class RunnerConfig:
         validate_experiment_requirements(Path(__file__))
         output.console_log("Config.validate_experiment() called!")
 
-    def before_experiment(self) -> None:
-        """Called before experiment starts."""
-        output.console_log("Starting Android energy monitoring experiment...")
-        output.console_log("Ensure your Android device is connected via USB or emulator is running")
+    def before_experiment(self):
+        self.profiler = AndroidBatteryMonitor(
+            device_serial=None,
+            poll_interval=2
+        )
+        self.profiler.open_device()
+        output.console_log("Android profiler initialized")
 
     def before_run(self) -> None:
         """Called before each run."""
         output.console_log(f"Preparing device for run...")
 
-    def start_run(self, context: RunnerContext) -> None:
-        """Start a single experiment run."""
-        output.console_log("Config.start_run() called!")
+    def start_run(self, context):
+        if self.profiler is None:
+            self.profiler = AndroidBatteryMonitor(
+                device_serial=None,
+                poll_interval=2
+            )
+            self.profiler.open_device()
+
+        self.profiler.logfile = (context.run_dir / "android_battery.csv")
 
     def start_measurement(self, context: RunnerContext) -> None:
-        """Start measurement - energy monitoring begins here automatically."""
-        output.console_log("Energy monitoring started (battery metrics being collected)")
+        """Start measurement."""
+        output.console_log("Energy monitoring started")
+        self.profiler.start()
 
     def interact(self, context: RunnerContext):
         workload = context.execute_run['workload']
@@ -130,30 +123,45 @@ class RunnerConfig:
     def stop_measurement(self, context: RunnerContext) -> None:
         """Stop measurement - energy monitoring ends here automatically."""
         output.console_log("Energy monitoring stopped")
+        self.profiler.stop()
 
     def stop_run(self, context: RunnerContext) -> None:
         """Stop the current run."""
         output.console_log(f"Stopped run: {context.execute_run['__run_id']}")
 
-    def populate_run_data(self, context: RunnerContext) -> Optional[Dict[str, Any]]:
-        """Populate data columns for this run. """
+    def populate_run_data(self, context: RunnerContext):
+        battery_log = self.profiler.parse_log(self.profiler.logfile)
         workload = context.execute_run['workload']
-        
         duration_ms = {
-            'light': 5000,
-            'medium': 10000,
-            'heavy': 15000
-        }.get(workload, 5000)
-        
+            'light':5000,
+            'medium':10000,
+            'heavy':15000
+        }[workload]
+
         return {
-            'workload_duration_ms': duration_ms,
-            'task_completion_status': 'success'
+            "workload_duration_ms": duration_ms,
+            "task_completion_status": "success",
+            "android_battery__battery_percentage":
+                battery_log.get("android_battery__percentage", 0),
+            "android_battery__battery_temperature":
+                battery_log.get("android_battery__temperature", 0),
+            "android_battery__battery_voltage":
+                battery_log.get(
+                    "android_battery__voltage",0),
+            "android_battery__current_now":
+                battery_log.get(
+                    "android_battery__current_now",0),
+            "android_battery__charge_counter":
+                battery_log.get(
+                    "android_battery__charge_counter",0),
+            "android_battery__power_draw":
+                battery_log.get("android_battery__power_draw",0)
         }
 
     def after_experiment(self) -> None:
         """Called after experiment completes."""
         output.console_log("Android energy monitoring experiment completed!")
-        output.console_log("Results stored in experiments/android_energy_monitoring_experiment/")
+        output.console_log(f"Results stored in {self.results_output_path}")
 
     # ================================ DO NOT ALTER BELOW THIS LINE ================================
     experiment_path: Path = None
