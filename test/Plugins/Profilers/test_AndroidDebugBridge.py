@@ -1,112 +1,148 @@
 import unittest
-import shutil
 import tempfile
+import shutil
 import sys
-
+import time
+import pandas as pd
 from pathlib import Path
-from typing import AnyStr
+from unittest.mock import patch, MagicMock
 
 sys.path.append("experiment-runner")
 
-from ConfigValidator.Config.Models.RunnerContext import RunnerContext
-from ConfigValidator.Config.RunnerConfig import RunnerConfig
-from Plugins.Profilers.AndroidDebugBridge import (
-    AndroidBatteryMonitor,
-    battery_monitor,
-    start_battery_monitor,
-    stop_battery_monitor,
-    add_data_columns,
-    populate_data_columns,
-    DataColumns
-)
+from Plugins.Profilers.AndroidDebugBridge import AndroidBatteryMonitor
 
-class TestADBIndividual(unittest.TestCase):
-    class BatteryConfig(RunnerConfig):
-        tmpdir: AnyStr = tempfile.mkdtemp()
-        def clear(self):
-            shutil.rmtree(self.__class__.tmpdir)
+class TestADBMonitorLoop(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+    def fake_subprocess(self, *args, **kwargs):
+        cmd = args[0]
+        mock = MagicMock()
+        mock.returncode = 0
+        # CASE 1: adb devices
+        if "devices" in cmd:
+            mock.stdout = "emulator-5554\tdevice\n"
+            return mock
+        # CASE 2: dumpsys battery
+        mock.stdout = """
+        level: 75
+        temperature: 315
+        voltage: 4100
+        current now: -900000
+        charge counter: 3810000
+        """
+        return mock
 
-        @add_data_columns([
-            DataColumns.BATTERY_PERCENTAGE.name,
-            DataColumns.BATTERY_TEMPERATURE.name,
-            DataColumns.CURRENT_NOW.name
-        ])
-        def create_run_table_model(self):
-            return super().create_run_table_model()
+    def test_start_stop_monitor(self):
+        with patch("subprocess.run", side_effect=self.fake_subprocess):
+            monitor = AndroidBatteryMonitor(
+                out_file=Path(self.tmpdir) / "android_battery.csv",
+                poll_interval=1
+            )
 
-        @start_battery_monitor(
-            poll_interval=1
-        )
-        def start_measurement(self, context: RunnerContext):
-            super().start_measurement(context)
-
-        def interact(self, context: RunnerContext):
-            import time
+            monitor.start()
             time.sleep(3)
+            monitor.stop()
 
-        @stop_battery_monitor
-        def stop_measurement(self, context: RunnerContext):
-            super().stop_measurement(context)
+        csv_path = Path(self.tmpdir) / "android_battery.csv"
+        self.assertTrue(csv_path.exists())
+
+        df = pd.read_csv(csv_path)
+
+        self.assertFalse(df.empty)
+        self.assertIn("voltage", df.columns)
+        self.assertIn("power_draw", df.columns)
+        print(df.head())
+
+class FakeBatteryDevice:
+    """
+    Deterministic battery simulator.
+    Mimics Android dumpsys battery output.
+    """
+    def __init__(self):
+        self.level = 80
+        self.voltage = 4200
+        self.temperature = 310
+        self.current_now = -900000  # µA
+        self.charge_counter = 3810000
+        self.tick = 0
+
+    def step(self):
+        """
+        Simulate time passing.
+        """
+        self.tick += 1
+
+        # battery slowly drains
+        if self.tick % 2 == 0:
+            self.level = max(0, self.level - 1)
+        # voltage drops slightly with battery level
+        self.voltage = 4200 - (80 - self.level) * 2
+        # current fluctuates slightly
+        self.current_now = -900000 - (self.tick * 1000)
+
+    def dumpsys(self):
+        self.step()
+        return f"""
+        level: {self.level}
+        temperature: {self.temperature}
+        voltage: {self.voltage}
+        current now: {self.current_now}
+        charge counter: {self.charge_counter}
+        """
+
+class FakeADB:
+    def __init__(self, device: FakeBatteryDevice):
+        self.device = device
+
+    def run(self, cmd, *args, **kwargs):
+        mock = MagicMock()
+        mock.returncode = 0
+        cmd_str = " ".join(cmd)
+        # adb devices
+        if "devices" in cmd_str:
+            mock.stdout = "emulator-5554\tdevice\n"
+            return mock
+
+        # dumpsys battery
+        if "dumpsys battery" in cmd_str:
+            mock.stdout = self.device.dumpsys()
+            return mock
+
+        mock.stdout = ""
+        return mock
+
+class TestDeterministicBattery(unittest.TestCase):
 
     def setUp(self):
-        self.runner_config = self.__class__.BatteryConfig()
+        self.tmpdir = tempfile.mkdtemp()
 
     def tearDown(self):
-        self.runner_config.clear()
+        shutil.rmtree(self.tmpdir)
 
     def test_monitor(self):
+        device = FakeBatteryDevice()
+        fake_adb = FakeADB(device)
 
-        class FakeContext:
-            run_dir = Path(self.runner_config.tmpdir)
+        def patched_run(cmd, *args, **kwargs):
+            return fake_adb.run(cmd, *args, **kwargs)
 
-        context = FakeContext()
+        with patch("subprocess.run", side_effect=patched_run):
+            monitor = AndroidBatteryMonitor(
+                out_file=Path(self.tmpdir) / "battery.csv",
+                poll_interval=1
+            )
+            monitor.start()
 
-        self.runner_config.start_measurement(context)
-        self.runner_config.interact(context)
-        self.runner_config.stop_measurement(context)
+            time.sleep(4)
+            monitor.stop()
 
-        run_data = self.runner_config.populate_run_data(context)
+        df = pd.read_csv(Path(self.tmpdir) / "battery.csv")
 
-        self.assertTrue((Path(self.runner_config.tmpdir)/ "android_battery.csv").is_file())
-        print(run_data)
-
-class TestADBCombined(unittest.TestCase):
-    tmpdir: AnyStr = tempfile.mkdtemp()
-    @battery_monitor(
-        poll_interval=1,
-        data_columns=[
-            DataColumns.BATTERY_PERCENTAGE.name,
-            DataColumns.BATTERY_TEMPERATURE.name,
-            DataColumns.CURRENT_NOW.name,
-            DataColumns.POWER_DRAW.name
-        ]
-    )
-    class BatteryConfig(RunnerConfig):
-        def clear(self):
-            shutil.rmtree(TestADBCombined.tmpdir)
-
-        def interact(self, context):
-            import time
-            time.sleep(3)
-
-    def setUp(self):
-        self.runner_config = self.__class__.BatteryConfig()
-
-    def tearDown(self):
-        self.runner_config.clear()
-
-    def test_monitor(self):
-
-        class FakeContext:
-            run_dir = Path(TestADBCombined.tmpdir)
-
-        context = FakeContext()
-
-        self.runner_config.start_measurement(context)
-        self.runner_config.interact(context)
-        self.runner_config.stop_measurement(context)
-
-        run_data = self.runner_config.populate_run_data(context)
-
-        self.assertTrue((Path(TestADBCombined.tmpdir)/ "android_battery.csv").is_file())
-        print(run_data)
+        # deterministic checks
+        self.assertGreater(len(df), 2)
+        self.assertIn("voltage", df.columns)
+        self.assertIn("power_draw", df.columns)
+        self.assertTrue(df["voltage"].iloc[-1] <= df["voltage"].iloc[0])
+        print(df)
