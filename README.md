@@ -131,11 +131,11 @@ Experiment Runner supports **distributed execution across multiple machines** us
 ### How to run it
 Start the orchestrator on the master machine:
  ```bash
-python experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute master --host host_nr --port port_nr
+python experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute master <host host_nr --port port_nr>
 ```
 On each worker machine, connect to the master:
 ```bash
-experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute worker --master orchestor_adress
+experiment-runner/ examples/<example-dir>/<RunnerConfig*.py> --distribute worker --master <orchestor_adress>
 ```
 When the experiment finish it, the master would close automatically, the rest of the workers would need manually closing, they would close after 120s
 

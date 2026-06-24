@@ -306,6 +306,9 @@ class DistributedOrchestrator:
         self.experiment_path.mkdir(parents=True, exist_ok=True)
         self.run_table_path = (self.experiment_path / "run_table.csv")
 
+        EventSubscriptionController.raise_event(
+            RunnerEvents.VALIDATE_EXPERIMENT
+        )
         if self.run_table_path.exists():
             print("[MASTER] Existing experiment detected")
 
@@ -333,10 +336,6 @@ class DistributedOrchestrator:
     def start(self):
         if self.finished_before_start:
             return
-        
-        EventSubscriptionController.raise_event(
-            RunnerEvents.VALIDATE_EXPERIMENT
-        )
 
         EventSubscriptionController.raise_event(
             RunnerEvents.BEFORE_EXPERIMENT
