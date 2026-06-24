@@ -1,5 +1,7 @@
 from ProgressManager.RunTable.Models.RunProgress import RunProgress
+from ConfigValidator.Config.Models.Metadata import Metadata
 from ProgressManager.Output.CSVOutputManager import CSVOutputManager
+from ConfigValidator.Config.Models.OperationType import OperationType
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
 from ProgressManager.Validation.AnomaliesChecker import ResultsValidator, AnomalyReport
@@ -26,7 +28,8 @@ from waitress import serve
 ###     =========================================================
 class TaskManager:
 
-    def __init__(self, run_table, experiment_path: Path):
+    def __init__(self,config, run_table, experiment_path: Path):
+        self.config = config
         self.run_table = run_table
         self.experiment_path = experiment_path
         self.assigned_runs = {}
@@ -93,13 +96,14 @@ class TaskManager:
                 self.shutdown = True
                 print("\n[MASTER] ALL RUNS COMPLETED\n")
 
+                if self.config.operation_type is OperationType.SEMI:
+                    EventSubscriptionController.raise_event(RunnerEvents.CONTINUE)
+
                 # AFTER_EXPERIMENT hook
                 print("[MASTER] Calling AFTER_EXPERIMENT hook")
                 EventSubscriptionController.raise_event(
                     RunnerEvents.AFTER_EXPERIMENT
                 )
-                #time.sleep(5)
-                #shutdown_server()
 
     def restore_crashed_runs(self):
         """
@@ -140,11 +144,10 @@ class TaskManager:
 ###     =========================================================
 class APIServer:
 
-    def __init__(self, task_manager, worker_monitor, validation_results):
+    def __init__(self, task_manager, worker_monitor):
         self.app = Flask(__name__)
         self.task_manager = task_manager
         self.monitor = worker_monitor
-        self.validation_results = validation_results
         
         @self.app.route('/task', methods=['GET'])
         def get_task():
@@ -190,7 +193,8 @@ class APIServer:
                 if anomalies:
                     report = AnomalyReport()
                     report.anomalies.extend(anomalies)
-                    self.validation_results[run_id] = report
+                    log_file_path = (self.task_manager.experiment_path/ self.task_manager.config.energy_validation_log_file)
+                    ResultsValidator.update_report(report, log_file_path)
             return jsonify({"status": "ok"})
 
         @self.app.route('/heartbeat', methods=['POST'])
@@ -300,7 +304,6 @@ class DistributedOrchestrator:
         self.metadata = metadata
         self.host = host
         self.port = port
-        self.validation_results = {}
 
         self.experiment_path = (config.results_output_path / config.name)
         self.experiment_path.mkdir(parents=True, exist_ok=True)
@@ -320,7 +323,7 @@ class DistributedOrchestrator:
             run_table = (config.create_run_table_model().generate_experiment_run_table())
             pd.DataFrame(run_table).to_csv(self.run_table_path, index=False)
 
-        self.task_manager = TaskManager(run_table, self.experiment_path)
+        self.task_manager = TaskManager(self.config, run_table, self.experiment_path)
         self.task_manager.restore_crashed_runs()
 
         if self.task_manager.experiment_already_completed():
@@ -331,7 +334,7 @@ class DistributedOrchestrator:
             self.finished_before_start = False
         self.monitor = WorkerMonitor(self.task_manager)
 
-        self.api = APIServer(self.task_manager, self.monitor, self.validation_results)
+        self.api = APIServer(self.task_manager, self.monitor)
 
     def start(self):
         if self.finished_before_start:
@@ -365,22 +368,6 @@ class DistributedOrchestrator:
 
         print("[MASTER] Waiting for workers to shutdown...")
         time.sleep(10)
-        combined_report = AnomalyReport()
-
-        for report in self.validation_results.values():
-            combined_report.anomalies.extend(report.anomalies)
-
-        if combined_report.has_anomalies():
-            log_file_path = (
-                self.experiment_path
-                / self.config.energy_validation_log_file
-            )
-
-            ResultsValidator.save_report_to_file(
-                combined_report,
-                log_file_path
-            )
-
         print("[MASTER] Shutting down")
         os._exit(0)
         

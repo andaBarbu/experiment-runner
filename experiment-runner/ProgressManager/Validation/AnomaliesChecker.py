@@ -66,16 +66,14 @@ class ResultsValidator:
         return numeric_cols
 
     @staticmethod
-    def generate_report_text(report: AnomalyReport) -> str:
+    def generate_report_text(report: AnomalyReport, include_header: bool = True) -> str:
         lines = []
-        lines.append("=" * 80)
-        lines.append("GENERIC MEASUREMENT VALIDATION REPORT")
-        lines.append("=" * 80)
-        lines.append("")
-
-        if not report.has_anomalies():
-            lines.append("No anomalies found.")
-            return "\n".join(lines)
+        
+        if include_header:
+            lines.append("=" * 80)
+            lines.append("GENERIC MEASUREMENT VALIDATION REPORT")
+            lines.append("=" * 80)
+            lines.append("")
 
         runs: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -130,6 +128,26 @@ class ResultsValidator:
                 elif value == 0:
                     report.add_anomaly(run_id, treatment_levels, str(csv_file), row_number, column, value, "zero")
         return report 
+    
+    @staticmethod
+    def update_report(report: AnomalyReport, log_file: Path):
+        if not report.has_anomalies():
+            return
+        
+        first_report = not log_file.exists()
+        report_text = ResultsValidator.generate_report_text(report, include_header = first_report)
+        
+        try:
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            mode = "a" if log_file.exists() else "w"
+
+            with open(log_file, mode) as f:
+                if mode == "a":
+                    f.write("\n\n")
+                f.write(report_text)
+            output.console_log_OK(f"Results validation report updated: {log_file}")
+        except Exception as e:
+            output.console_log_FAIL(f"Failed to update results validation report: {e}")
 
     @staticmethod
     def save_report_to_file(report: EnergyAnomalyReport, log_file: Path) -> None:
