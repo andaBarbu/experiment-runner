@@ -38,13 +38,15 @@ class ExperimentController:
     def __init__(self, config: RunnerConfig, metadata: Metadata):
         self.config = config
         self.metadata = metadata
-        self.validation_results: dict[str, AnomalyReport] = {}
 
+        self.validation_state = 0
+        self.validation_log_file_path = (self.config.experiment_path / self.config.energy_validation_log_file)
+        
         self.csv_data_manager = CSVOutputManager(self.config.experiment_path)
         self.json_data_manager = JSONOutputManager(self.config.experiment_path)
-
         # -- Validate experiment setup
         # TODO: From the user perspective, it would be nice to know if are any possible issues with the experiment before staring the experiment runs. For example, if the config hooks are not properly defined, or if there are any issues with the config file itself
+
         output.console_log_WARNING("Calling validate_experiment config hook")
         try:
             EventSubscriptionController.raise_event(RunnerEvents.VALIDATE_EXPERIMENT)
@@ -69,6 +71,12 @@ class ExperimentController:
         except FileExistsError:
             output.console_log_WARNING(f"Reusing already existing experiment path: {self.config.experiment_path}")
             existing_run_table = self.csv_data_manager.read_run_table()
+
+            for run in existing_run_table:
+                if run['__done'] == RunProgress.RUNNING:
+                    run['__done'] = RunProgress.TODO
+            self.csv_data_manager.write_run_table(existing_run_table) 
+            print("[MASTER] Restored RUNNING -> TODO after restart")
 
             # First sanity check. If there is no "TODO" in the __done column, simply abort.
             todo_run_found = any([current_run['__done'] != RunProgress.DONE for current_run in existing_run_table])
@@ -170,7 +178,10 @@ class ExperimentController:
                 treatment_levels,
             )
             if run_report.has_anomalies():
-                self.validation_results[run_id] = run_report
+                ResultsValidator.update_report(
+                    run_report,
+                    self.validation_log_file_path
+                )
             
             time_btwn_runs = self.config.time_between_runs_in_ms
             if time_btwn_runs > 0:
@@ -185,14 +196,3 @@ class ExperimentController:
         # -- After experiment
         output.console_log_WARNING("Calling after_experiment config hook")
         EventSubscriptionController.raise_event(RunnerEvents.AFTER_EXPERIMENT)
-
-       # -- Anomalies Report creation
-        combined_report = AnomalyReport()
-
-        for report in self.validation_results.values():
-            combined_report.anomalies.extend(report.anomalies)
-
-        if combined_report.has_anomalies():
-            log_file_path = (self.config.experiment_path / self.config.energy_validation_log_file)
-            output.console_log_WARNING(f"Anomalies detected. Report saved to {log_file_path}")
-            ResultsValidator.save_report_to_file(combined_report, log_file_path)
