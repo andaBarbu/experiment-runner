@@ -1,5 +1,7 @@
 from ProgressManager.RunTable.Models.RunProgress import RunProgress
+from ConfigValidator.Config.Models.Metadata import Metadata
 from ProgressManager.Output.CSVOutputManager import CSVOutputManager
+from ConfigValidator.Config.Models.OperationType import OperationType
 from EventManager.Models.RunnerEvents import RunnerEvents
 from EventManager.EventSubscriptionController import EventSubscriptionController
 from ProgressManager.Validation.AnomaliesChecker import ResultsValidator, AnomalyReport
@@ -26,7 +28,8 @@ from waitress import serve
 ###     =========================================================
 class TaskManager:
 
-    def __init__(self, run_table, experiment_path: Path):
+    def __init__(self,config, run_table, experiment_path: Path):
+        self.config = config
         self.run_table = run_table
         self.experiment_path = experiment_path
         self.assigned_runs = {}
@@ -93,13 +96,14 @@ class TaskManager:
                 self.shutdown = True
                 print("\n[MASTER] ALL RUNS COMPLETED\n")
 
+                if self.config.operation_type is OperationType.SEMI:
+                    EventSubscriptionController.raise_event(RunnerEvents.CONTINUE)
+
                 # AFTER_EXPERIMENT hook
                 print("[MASTER] Calling AFTER_EXPERIMENT hook")
                 EventSubscriptionController.raise_event(
                     RunnerEvents.AFTER_EXPERIMENT
                 )
-                #time.sleep(5)
-                #shutdown_server()
 
     def restore_crashed_runs(self):
         """
@@ -320,7 +324,7 @@ class DistributedOrchestrator:
             run_table = (config.create_run_table_model().generate_experiment_run_table())
             pd.DataFrame(run_table).to_csv(self.run_table_path, index=False)
 
-        self.task_manager = TaskManager(run_table, self.experiment_path)
+        self.task_manager = TaskManager(self.config, run_table, self.experiment_path)
         self.task_manager.restore_crashed_runs()
 
         if self.task_manager.experiment_already_completed():
