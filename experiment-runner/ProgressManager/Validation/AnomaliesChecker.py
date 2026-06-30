@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Set
 import pandas as pd
+import json
 from pathlib import Path
 from ProgressManager.Output.OutputProcedure import OutputProcedure as output
 
@@ -101,8 +102,8 @@ class ResultsValidator:
     def validate_output_log(run_dir: Path,run_id: str,treatment_levels: Dict[str, Any],) -> AnomalyReport:
         report = AnomalyReport()
 
-        csv_files = list(run_dir.glob("*.csv"))
-        if not csv_files:
+        data_files = list(run_dir.glob("*.csv")) + list(run_dir.glob("*.json"))        
+        if not data_files:
             report.add_anomaly(
                 run_id,
                 treatment_levels,
@@ -114,8 +115,33 @@ class ResultsValidator:
             )
             return report
 
-        csv_file = csv_files[0]
-        df = pd.read_csv(csv_file)
+        for file in data_files:
+            try:
+                if file.suffix == ".csv":
+                    df = pd.read_csv(file)
+                elif file.suffix == ".json":
+
+                    with open(file) as f:
+                        data = json.load(f)
+                    # convert JSON to DataFrame
+                    if isinstance(data, list):
+                        df = pd.DataFrame(data)
+                    else:
+                        df = pd.DataFrame([data])
+                else:
+                    continue
+            except Exception as e:
+                report.add_anomaly(
+                    run_id,
+                    treatment_levels,
+                    str(file),
+                    -1,
+                    "READ_ERROR",
+                    str(e),
+                    "invalid_file"
+                )
+                continue
+                
         columns_to_check = ResultsValidator._detect_numeric_columns(df)
 
         for column in columns_to_check:
