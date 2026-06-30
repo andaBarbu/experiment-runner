@@ -141,18 +141,18 @@ class ResultsValidator:
                     "invalid_file"
                 )
                 continue
-                
+
         columns_to_check = ResultsValidator._detect_numeric_columns(df)
 
         for column in columns_to_check:
             values = pd.to_numeric(df[column], errors="coerce")
             for row_number, value in values.items():
                 if pd.isna(value):
-                    report.add_anomaly(run_id, treatment_levels, str(csv_file), row_number, column, value, "NaN")
+                    report.add_anomaly(run_id, treatment_levels, str(data_files), row_number, column, value, "NaN")
                 elif value < 0:
-                    report.add_anomaly(run_id, treatment_levels, str(csv_file), row_number, column, value, "negative")
+                    report.add_anomaly(run_id, treatment_levels, str(data_files), row_number, column, value, "negative")
                 elif value == 0:
-                    report.add_anomaly(run_id, treatment_levels, str(csv_file), row_number, column, value, "zero")
+                    report.add_anomaly(run_id, treatment_levels, str(data_files), row_number, column, value, "zero")
         return report 
     
     @staticmethod
