@@ -42,7 +42,7 @@ class PowerJoular(CLISource):
     @property
     def target_logfile(self):
         if "-p" in self.args.keys():
-            return f"{self.logfile}-{self.args['-p']}.csv"
+            return f"{self.logfile}-{self.args["-p"]}.csv"
         
         return None
 
