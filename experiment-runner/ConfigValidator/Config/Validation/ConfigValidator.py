@@ -73,7 +73,7 @@ class ConfigValidator:
         # Runtime set experiment_path
         config.experiment_path = Path(str(config.results_output_path) + f"/{config.name}")
         if '~' in str(config.experiment_path):
-            config.experiment_path = config.experiment_path.expanduser()
+            config.experiment_path = config.experiment_path.expanduser().resolve()
         
         # Set defaults to support configs without the self_measure parameter and friends
         if not hasattr(config, "self_measure"):
